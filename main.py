@@ -65,7 +65,44 @@ def get_events(notes):
         })
     return events
 
-
 notes = get_notes(test_midi)
 events = get_events(notes)
 print(events)
+
+WAIT_DURATIONS = {i*.25:f"WAIT_{i}" for i in range(1,33)}
+ON_TOKENS = {i:f"NOTE_ON_{i}" for i in range(128)}
+OFF_TOKENS = {i:f"NOTE_OFF_{i}" for i in range(128)}
+
+
+TOKEN_VOCAB = list(WAIT_DURATIONS.values()) + list(ON_TOKENS.values()) + list(OFF_TOKENS.values())
+
+def events_to_tokens(events):
+    tokens = []
+
+    curr_time = 0
+    for e in events:
+        note_type = e["type"]
+        pitch = e["pitch"]
+        time = e["time"]
+
+        if note_type == "OFF":
+            curr_token = OFF_TOKENS[pitch]
+        elif note_type == "ON":
+            curr_token = ON_TOKENS[pitch]
+
+        dtime = time-curr_time
+
+        while dtime > .25:
+            for i in range(32,0,-1):
+                t = i*.25
+                if t<dtime:
+                    dtime-=t
+                    tokens.append(WAIT_DURATIONS[t])
+
+        tokens.append(curr_token)
+        curr_time = time
+
+    return tokens
+
+
+print(events_to_tokens(events))
