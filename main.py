@@ -1,8 +1,17 @@
 import music21
 import os
-
+from spacy.vocab import Vocab
 from music21 import midi
 #music21.configure.run()
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+import model
+
+
 
 files = ["AndYouAndI-Yes.mid","SiberianKhatru-Yes.mid","CloseToTheEdge-Yes.mid","InTheCourtOfKingCrimson-KingCrimson.mid"]
 files = list(map(lambda x:os.path.join("midis",x),files))
@@ -74,7 +83,10 @@ ON_TOKENS = {i:f"NOTE_ON_{i}" for i in range(128)}
 OFF_TOKENS = {i:f"NOTE_OFF_{i}" for i in range(128)}
 
 
-TOKEN_VOCAB = list(WAIT_DURATIONS.values()) + list(ON_TOKENS.values()) + list(OFF_TOKENS.values())
+T_V = list(WAIT_DURATIONS.values()) + list(ON_TOKENS.values()) + list(OFF_TOKENS.values())
+TOKEN_VOCAB = Vocab()
+for t in T_V:
+    temp = TOKEN_VOCAB[t]
 
 def events_to_tokens(events):
     tokens = []
@@ -104,5 +116,38 @@ def events_to_tokens(events):
 
     return tokens
 
+def get_loader(data,batch_size,collate=None,shuffle=False):
+    return torch.utils.data.DataLoader(
+        dataset=data,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        #the preprocessing function
+        # collate_fn=collate,
+        # pin_memory=True,
+        # num_workers=2,
+        # persistent_workers=True
+    )
 
-print(events_to_tokens(events))
+class music_snippet_dataset(Dataset):
+    def __init__(self,song_paths,snippet_length):
+        self.features = []
+        self.labels = []
+        for path in song_paths:
+            midi = open_midi(path)
+            notes = get_notes(midi)
+            events = get_events(notes)
+            tokens = events_to_tokens(events)
+            for i in range(0,len(tokens)-snippet_length):
+                self.features.append(tokens[i:i+snippet_length])
+                self.labels.append(tokens[i+snippet_length])
+
+    def __len__(self):
+        return len(self.features)
+
+    def __getitem__(self, i):
+        return self.features[i], self.labels[i]
+
+
+NUM_TOKENS = len(TOKEN_VOCAB)
+
+
