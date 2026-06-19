@@ -6,6 +6,9 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 
+# Decoder Only Transformer Stuff
+# gotten from Cameron R Wolfe's blog (thank you Cameron R. Wolfe)
+
 class CausalSelfAttention(nn.Module):
     def __init__(self,
                  EMBEDDING_DIM,
@@ -93,8 +96,6 @@ class Block(nn.Module):
         x += self.attn(self.ln_1(x))
         x += self.ffnn(self.ln_2(x))
         return x
-
-
 
 class DecoderOnlyTransformer(nn.Module):
     def __init__(self,
