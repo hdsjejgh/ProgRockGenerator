@@ -9,7 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-import model
+from model import *
 
 
 
@@ -132,14 +132,26 @@ class music_snippet_dataset(Dataset):
     def __init__(self,song_paths,snippet_length):
         self.features = []
         self.labels = []
+
+        self.unique_tokens = set()
+        self.token_to_id = {}
+        self.id_to_token = {}
         for path in song_paths:
             midi = open_midi(path)
             notes = get_notes(midi)
             events = get_events(notes)
             tokens = events_to_tokens(events)
+            for i in range(len(tokens)):
+                if tokens[i] not in self.unique_tokens:
+                    self.token_to_id[tokens[i]] = len(self.unique_tokens)
+                    self.id_to_token[len(self.unique_tokens)] = tokens[i]
+                    self.unique_tokens.add(tokens[i])
+                tokens[i] = self.token_to_id[tokens[i]]
             for i in range(0,len(tokens)-snippet_length):
                 self.features.append(tokens[i:i+snippet_length])
                 self.labels.append(tokens[i+snippet_length])
+        self.features = torch.tensor(self.features)
+        self.labels = torch.tensor(self.labels)
 
     def __len__(self):
         return len(self.features)
@@ -149,5 +161,22 @@ class music_snippet_dataset(Dataset):
 
 
 NUM_TOKENS = len(TOKEN_VOCAB)
+data = music_snippet_dataset([files[3]],128)
 
 
+
+EMBEDDING_DIM = 256
+HEADS = 4
+MAX_TOKENS= 128
+VOCAB_SIZE = len(data.unique_tokens)
+LAYERS = 2
+
+model = DecoderOnlyTransformer(
+    EMBEDDING_DIM=EMBEDDING_DIM,
+    HEADS=HEADS,
+    MAX_TOKENS=MAX_TOKENS,
+    VOCAB_SIZE=VOCAB_SIZE,
+    LAYERS=LAYERS,
+)
+
+print(model.forward(torch.unsqueeze(data[0][0],0), torch.unsqueeze(data[0][1],0)))
