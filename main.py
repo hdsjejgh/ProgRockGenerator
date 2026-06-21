@@ -1,14 +1,11 @@
 import music21
 import os
-from spacy.vocab import Vocab
+import tqdm
 from music21 import midi
 #music21.configure.run()
 
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader, random_split
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
 from model import *
 
 
@@ -186,9 +183,9 @@ class music_snippet_dataset(Dataset):
                 tokens[i] = self.token_to_id[tokens[i]]
 
             #creates samples using a sliding window of width snippet_length
-            for i in range(0,len(tokens)-snippet_length):
+            for i in range(0,len(tokens)-snippet_length-1):
                 self.features.append(tokens[i:i+snippet_length])
-                self.labels.append(tokens[i+snippet_length])
+                self.labels.append(tokens[i+1:i+snippet_length+1])
 
         #turns features and labels into tensors
         self.features = torch.tensor(self.features)
@@ -219,4 +216,97 @@ model = DecoderOnlyTransformer(
     LAYERS=LAYERS,
 )
 
-print(model.forward(torch.unsqueeze(data[0][0],0), torch.unsqueeze(data[0][1],0)))
+#proportion of the data to be split across training, testing, and validation
+TRAIN_P = .7
+TEST_P = .2
+VALID_P = 1-TRAIN_P-TEST_P
+assert abs(1-(TRAIN_P+TEST_P+VALID_P)) < 1e-5 and 1>TRAIN_P>0 and 1>TEST_P>0 and 1>VALID_P>0, \
+    f"train, test, and validation proportions must be validation proportions which add to 1: {TRAIN_P} + {TEST_P} + {VALID_P} = {(TRAIN_P+TEST_P+VALID_P)}"
+
+train_set, test_set, valid_set = random_split(data, [TRAIN_P, TEST_P, VALID_P])
+
+#creates data loaders for each of the datasets
+train_loader = get_loader(
+    data=train_set,
+    batch_size=32,
+    shuffle=True,
+)
+test_loader = get_loader(
+    data=test_set,
+    batch_size=32,
+    shuffle=False,
+)
+valid_loader = get_loader(
+    data=valid_set,
+    batch_size=32,
+    shuffle=False,
+)
+
+#initializes model parameters between [-.08, .08]
+def initialize(m):
+    for name, param in m.named_parameters():
+        nn.init.uniform_(param.data, -0.08, 0.08)
+
+initialize(model)
+
+#scales gradients in training
+scaler = torch.cuda.amp.GradScaler()
+#uses adamW optimizing algorithm
+optimizer = optim.AdamW(model.parameters(), lr=1e-4,betas=(0.9,0.98),)
+#loss is CCE
+criterion = nn.CrossEntropyLoss(label_smoothing=0.075)
+#total epochs of training
+EPOCHS = 10
+#Learning rate scheduler
+scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
+
+
+# trains the model for one epoch
+def train(model, loader, optimizer, criterion, clip):
+    # puts the model in train mode
+    model.train()
+    # total loss over all batches
+    epoch_loss = 0
+
+    for i, batch in enumerate(loader):
+        if i%2==0: print(i)
+        src,trg = batch
+
+        # clears gradient in optimizer
+        optimizer.zero_grad()
+
+        # calculates predictions based on source
+
+        with torch.amp.autocast(device_type="cuda"):
+
+            output = model.forward(src, trg)
+
+            output = output.view(-1, VOCAB_SIZE)
+            trg = trg.view(-1)
+
+            # calculates loss and gradients
+            loss = criterion(output, trg)
+            scaler.scale(loss).backward()
+            # clips gradient in order to stop exploding gradient
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+
+        # updates parameters
+        scaler.step(optimizer)
+        scaler.update()
+        scheduler.step()
+        # adds loss this batch to total loss
+        epoch_loss += loss.item()
+    # returns the average loss per batch
+    return epoch_loss / len(loader)
+
+
+for epoch in tqdm.tqdm(range(1)):
+    # runs through the training set and gets the loss (~30k examples)
+    train_loss = train(
+        model = model,
+        loader = train_loader,
+        optimizer = optimizer,
+        criterion = criterion,
+        clip = 1.0,
+    )

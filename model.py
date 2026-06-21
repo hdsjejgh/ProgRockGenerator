@@ -2,7 +2,6 @@ import math
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 
 
@@ -93,8 +92,8 @@ class Block(nn.Module):
         self.ffnn = FFNN(EMBEDDING_DIM,BIAS,DROPOUT)
 
     def forward(self, x):
-        x += self.attn(self.ln_1(x))
-        x += self.ffnn(self.ln_2(x))
+        x = x + self.attn(self.ln_1(x))
+        x = x + self.ffnn(self.ln_2(x))
         return x
 
 class DecoderOnlyTransformer(nn.Module):
@@ -111,7 +110,7 @@ class DecoderOnlyTransformer(nn.Module):
             tok_emb = nn.Embedding(VOCAB_SIZE,EMBEDDING_DIM), #token embeddings
             pos_emb = nn.Embedding(MAX_TOKENS,EMBEDDING_DIM), #positional embeddings
             drop = nn.Dropout(DROPOUT),
-            blocks=nn.ModuleList([Block(EMBEDDING_DIM, HEADS, MAX_TOKENS, BIAS, DROPOUT) for _ in range(LAYERS)]),
+            blocks = nn.ModuleList([Block(EMBEDDING_DIM, HEADS, MAX_TOKENS, BIAS, DROPOUT) for _ in range(LAYERS)]),
             ln_f = nn.LayerNorm(EMBEDDING_DIM),
             head = nn.Linear(EMBEDDING_DIM,VOCAB_SIZE, bias=BIAS), #token classification head
         ))
@@ -129,20 +128,21 @@ class DecoderOnlyTransformer(nn.Module):
             x = block(x)
         x = self.transformer.ln_f(x)
 
-        if targets is None:
+        if targets is not None:
             #gets loss if target values are given
             logits = self.transformer.head(x)
-            loss = F.cross_entropy(
-                logits.view(-1, logits.size(-1)),
-                targets.view(-1),
-                ignore_index=-1,
-            )
+            # print(logits.size())
+            # loss = F.cross_entropy(
+            #     logits.view(-1, logits.size(-1)),
+            #     targets.view(-1),
+            #     ignore_index=-1,
+            # )
         else:
             #only look at last token if making inference
             logits = self.transformer.head(x[:, [-1], :])
             loss = None
 
-        return logits, loss
+        return logits#, loss
 
 
 
