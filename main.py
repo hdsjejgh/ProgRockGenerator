@@ -4,7 +4,7 @@ import tqdm
 from music21 import midi
 #music21.configure.run()
 
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset, random_split
 import torch.optim as optim
 from model import *
 
@@ -157,6 +157,7 @@ def get_loader(data,batch_size,collate=None,shuffle=False):
 #given songs get trasnformed into multiple [(tokens i-j), token j+1] feature and token items
 #tokens are converted to unique ids
 class music_snippet_dataset(Dataset):
+    # noinspection PyTypeChecker
     def __init__(self,song_paths,snippet_length):
         self.features = []
         self.labels = []
@@ -300,8 +301,32 @@ def train(model, loader, optimizer, criterion, clip):
     # returns the average loss per batch
     return epoch_loss / len(loader)
 
+def evaluate(model, loader, criterion):
+    # puts the model in evaluation mode
+    model.eval()
 
-for epoch in tqdm.tqdm(range(1)):
+    # will sum loss over each batch
+    epoch_loss = 0
+
+    # turns off the gradient calculation for speed
+    with torch.no_grad():
+        for i, batch in enumerate(loader):
+            src, tag = batch
+
+            # calculates predictions without teacher forcing
+            output = model(src, trg)
+            trg = trg.view(-1)
+
+            loss = criterion(output, trg)
+            # adds loss to the total
+            epoch_loss += loss.item()
+
+    # returns the average loss per batch
+    return epoch_loss / len(loader)
+
+MODEL_NAME = "RobertFripp2"
+
+for epoch in tqdm.tqdm(range(EPOCHS)):
     # runs through the training set and gets the loss (~30k examples)
     train_loss = train(
         model = model,
@@ -310,3 +335,20 @@ for epoch in tqdm.tqdm(range(1)):
         criterion = criterion,
         clip = 1.0,
     )
+
+    # runs through the validation set and gets the loss (~1k examples)
+    valid_loss = evaluate(
+        model=model,
+        loader=valid_loader,
+        criterion=criterion,
+    )
+
+    # if this epoch got the best validation loss so far, save this version of the model
+    # if valid_loss < best_loss:
+    #     best_loss = valid_loss
+    #     os.makedirs(os.path.join("models", MODEL_NAME), exist_ok=True)
+    #     torch.save(model, os.path.join("models", MODEL_NAME, MODEL_NAME + ".pt"))
+
+    # displays the loss info
+    print(f"Train Loss: {train_loss}")
+    print(f"Validation Loss: {valid_loss}")
