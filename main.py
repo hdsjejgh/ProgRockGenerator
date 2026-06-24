@@ -315,6 +315,8 @@ def evaluate(model, loader, criterion):
 
             # calculates predictions without teacher forcing
             output = model(src, trg)
+
+            output = output.view(-1, VOCAB_SIZE)
             trg = trg.view(-1)
 
             loss = criterion(output, trg)
