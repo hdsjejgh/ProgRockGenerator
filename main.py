@@ -311,7 +311,7 @@ def evaluate(model, loader, criterion):
     # turns off the gradient calculation for speed
     with torch.no_grad():
         for i, batch in enumerate(loader):
-            src, tag = batch
+            src, trg = batch
 
             # calculates predictions without teacher forcing
             output = model(src, trg)
