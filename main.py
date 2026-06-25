@@ -1,5 +1,7 @@
 import music21
 import os
+
+import torch
 import tqdm
 import json
 from music21 import midi
@@ -301,6 +303,17 @@ def evaluate(model, loader, criterion):
     # returns the average loss per batch
     return epoch_loss / len(loader)
 
+#predicts the next token given the input and model
+def predict(inp, prediction_model):
+    logits = prediction_model.forward(inp.unsqueeze(0))[0][-1]
+    #technically you dont have to softmax it but its done just for debugging in the future
+    res = F.softmax(logits, dim=0)
+
+    maxind = torch.argmax(res)
+    return maxind
+
+
+#this model will lowk replace robert fripp and revive king crimson
 MODEL_NAME = "RobertFripp2"
 #whether to train a new model (True) or load a model (False)
 TRAIN = False
@@ -403,5 +416,8 @@ elif not TRAIN:
     test_loss = evaluate(model, test_loader, criterion)
     print(f"Test Loss: {test_loss}")
 
-    sample = data[0]
-    print(model.forward(sample[0].unsqueeze(0), sample[1]))
+    sample = data[0][0]
+    print(sample)
+
+
+    print(predict(sample))
