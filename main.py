@@ -1,6 +1,7 @@
 import music21
 import os
 import tqdm
+import json
 from music21 import midi
 #music21.configure.run()
 
@@ -202,21 +203,6 @@ class music_snippet_dataset(Dataset):
 
 data = music_snippet_dataset([files[3]],128)
 
-#model hyperparameters
-EMBEDDING_DIM = 256
-HEADS = 4
-MAX_TOKENS= 128
-VOCAB_SIZE = len(data.unique_tokens)
-LAYERS = 2
-
-model = DecoderOnlyTransformer(
-    EMBEDDING_DIM=EMBEDDING_DIM,
-    HEADS=HEADS,
-    MAX_TOKENS=MAX_TOKENS,
-    VOCAB_SIZE=VOCAB_SIZE,
-    LAYERS=LAYERS,
-)
-
 #proportion of the data to be split across training, testing, and validation
 TRAIN_P = .7
 TEST_P = .2
@@ -248,19 +234,6 @@ def initialize(m):
     for name, param in m.named_parameters():
         nn.init.uniform_(param.data, -0.08, 0.08)
 
-initialize(model)
-
-#scales gradients in training
-scaler = torch.cuda.amp.GradScaler()
-#uses adamW optimizing algorithm
-optimizer = optim.AdamW(model.parameters(), lr=1e-4,betas=(0.9,0.98),)
-#loss is CCE
-criterion = nn.CrossEntropyLoss(label_smoothing=0.075)
-#total epochs of training
-EPOCHS = 10
-#Learning rate scheduler
-scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
-
 
 # trains the model for one epoch
 def train(model, loader, optimizer, criterion, clip):
@@ -270,7 +243,7 @@ def train(model, loader, optimizer, criterion, clip):
     epoch_loss = 0
 
     for i, batch in enumerate(loader):
-        if i%2==0: print(i)
+        if i%20==0: print(i)
         src,trg = batch
 
         # clears gradient in optimizer
@@ -282,6 +255,7 @@ def train(model, loader, optimizer, criterion, clip):
 
             output = model.forward(src, trg)
 
+            #changes shape to calculate loss
             output = output.view(-1, VOCAB_SIZE)
             trg = trg.view(-1)
 
@@ -316,6 +290,7 @@ def evaluate(model, loader, criterion):
             # calculates predictions without teacher forcing
             output = model(src, trg)
 
+            #changes shape to calculate loss
             output = output.view(-1, VOCAB_SIZE)
             trg = trg.view(-1)
 
@@ -327,30 +302,106 @@ def evaluate(model, loader, criterion):
     return epoch_loss / len(loader)
 
 MODEL_NAME = "RobertFripp2"
+#whether to train a new model (True) or load a model (False)
+TRAIN = False
 
-for epoch in tqdm.tqdm(range(EPOCHS)):
-    # runs through the training set and gets the loss (~30k examples)
-    train_loss = train(
-        model = model,
-        loader = train_loader,
-        optimizer = optimizer,
-        criterion = criterion,
-        clip = 1.0,
+#if training the model
+if TRAIN:
+    # model hyperparameters
+    EMBEDDING_DIM = 256
+    HEADS = 4
+    MAX_TOKENS = 128
+    VOCAB_SIZE = len(data.unique_tokens)
+    LAYERS = 2
+
+    model = DecoderOnlyTransformer(
+        EMBEDDING_DIM=EMBEDDING_DIM,
+        HEADS=HEADS,
+        MAX_TOKENS=MAX_TOKENS,
+        VOCAB_SIZE=VOCAB_SIZE,
+        LAYERS=LAYERS,
     )
 
-    # runs through the validation set and gets the loss (~1k examples)
-    valid_loss = evaluate(
-        model=model,
-        loader=valid_loader,
-        criterion=criterion,
-    )
+    initialize(model)
 
-    # if this epoch got the best validation loss so far, save this version of the model
-    # if valid_loss < best_loss:
-    #     best_loss = valid_loss
-    #     os.makedirs(os.path.join("models", MODEL_NAME), exist_ok=True)
-    #     torch.save(model, os.path.join("models", MODEL_NAME, MODEL_NAME + ".pt"))
+    # scales gradients in training
+    scaler = torch.cuda.amp.GradScaler()
+    # uses adamW optimizing algorithm
+    optimizer = optim.AdamW(model.parameters(), lr=1e-4, betas=(0.9, 0.98), )
+    # loss is CCE
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.075)
+    # total epochs of training
+    EPOCHS = 10
+    # Learning rate scheduler
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
 
-    # displays the loss info
-    print(f"Train Loss: {train_loss}")
-    print(f"Validation Loss: {valid_loss}")
+    #makes model directory if it doesnt exist
+    os.makedirs(os.path.join("models", MODEL_NAME), exist_ok=True)
+
+    #saves model parameters in json file in the model's directory
+    model_parameters = {
+        "EMBEDDING_DIM":EMBEDDING_DIM,
+        "HEADS":HEADS,
+        "MAX_TOKENS":MAX_TOKENS,
+        "VOCAB_SIZE":VOCAB_SIZE,
+        "LAYERS":LAYERS,
+    }
+    with open(os.path.join("models", MODEL_NAME, "model_parameters.json"), "w") as f:
+        json.dump(model_parameters, f, indent=4)
+
+    best_loss = float('inf')
+    for epoch in tqdm.tqdm(range(EPOCHS)):
+        # runs through the training set and gets the loss (~30k examples)
+        train_loss = train(
+            model = model,
+            loader = train_loader,
+            optimizer = optimizer,
+            criterion = criterion,
+            clip = 1.0,
+        )
+
+        # runs through the validation set and gets the loss (~1k examples)
+        valid_loss = evaluate(
+            model=model,
+            loader=valid_loader,
+            criterion=criterion,
+        )
+
+        # if this epoch got the best validation loss so far, save this version of the model
+        if valid_loss < best_loss:
+            best_loss = valid_loss
+
+            torch.save(model, os.path.join("models", MODEL_NAME, MODEL_NAME + ".pt"))
+
+        # displays the loss info
+        print(f"Train Loss: {train_loss}")
+        print(f"Validation Loss: {valid_loss}")
+
+#if not training model (ie, testing or evaluating it)
+elif not TRAIN:
+    #loads the model parameters from the saved json and stores them in variables just in case
+    with open(os.path.join("models", MODEL_NAME, "model_parameters.json"), 'r') as file:
+        model_parameters = json.load(file)
+    EMBEDDING_DIM,HEADS,MAX_TOKENS,VOCAB_SIZE,LAYERS = model_parameters.values()
+
+    # model = DecoderOnlyTransformer(
+    #     EMBEDDING_DIM=EMBEDDING_DIM,
+    #     HEADS=HEADS,
+    #     MAX_TOKENS=MAX_TOKENS,
+    #     VOCAB_SIZE=VOCAB_SIZE,
+    #     LAYERS=LAYERS,
+    # )
+
+    #loads model
+    model = torch.load(os.path.join("models", MODEL_NAME, MODEL_NAME + ".pt"), weights_only=False)
+
+    #model.load_state_dict(state_dict)
+    model.eval()
+    criterion = nn.CrossEntropyLoss()
+
+    #loss on the testing dataset
+    test_loss = evaluate(model, test_loader, criterion)
+    print(f"Test Loss: {test_loss}")
+
+    sample = data[0]
+    print(model.forward(sample[0].unsqueeze(0), sample[1]))
