@@ -3,6 +3,8 @@ from music21 import midi
 import torch
 from torch.utils.data import Dataset
 
+#an epsilon to avoid floating point errors
+EPS = 1e-6
 
 #opens midi into a music21 midi file from the path
 def open_midi(file_path):
@@ -74,13 +76,12 @@ def get_events(notes):
             "pitch": note["pitch"],
             "time": note["end"]
         })
+    #sorts events by time, puts offs before ons when they happen at the same time
+    events.sort(key=lambda e: (
+        e["time"],
+        0 if e["type"] == "OFF" else 1
+    ))
     return events
-
-
-#test_midi = open_midi(files[3])
-#notes = get_notes(test_midi)
-#events = get_events(notes)
-#print(events)
 
 
 # maps each wait time from 0.25-8 units to a corresponding wait token
@@ -96,6 +97,8 @@ OFF_TOKENS = {i:f"NOTE_OFF_{i}" for i in range(128)}
 def events_to_tokens(events):
     tokens = []
 
+    lost_time = 0
+
     curr_time = 0
     for e in events:
         note_type = e["type"]
@@ -110,23 +113,65 @@ def events_to_tokens(events):
         dtime = time-curr_time
 
         #breaks down the time between this and the last token into multiple wait tokens until the duration is under .25 (16th note)
-        while dtime > .25:
+        while dtime >= .25 - EPS:
             #fits the largest possible wait
             for i in range(32,0,-1):
                 t = i*.25
                 #if this duration fits, create the token
-                if t<dtime:
+                if t <= dtime + EPS:
                     dtime-=t
                     tokens.append(WAIT_DURATIONS[t])
+                    curr_time+=t
+        lost_time += dtime
 
         #adds the note token after adding all the wait tokens before it
         tokens.append(curr_token)
-        curr_time = time
+        #curr_time = time
 
+    print(f"Lost time: {lost_time}")
     return tokens
 
+
+#converts lists of tokens to a music21 stream
 def tokens_to_stream(tokens):
-    pass
+    #print(tokens)
+    #new stream
+    stream = music21.stream.Stream()
+
+    tempo_mark = music21.tempo.MetronomeMark(number=72)
+    stream.append(tempo_mark)
+
+    #measures current time in number of 16th notes
+    time = 0
+    #currently on notes
+    active = {}
+    for token in tokens:
+        #adds waited time to the current time
+        if token.startswith("WAIT_"):
+            time += int(token[5:])
+
+        #if token is a note start
+        elif token.startswith("NOTE_ON_"):
+            pitch = int(token[8:])
+            # appeds current time to the current pitch's active notes
+            active.setdefault(pitch, []).append(time)
+
+        #if token is a note end
+        elif token.startswith("NOTE_OFF_"):
+            pitch = int(token[9:])
+            #gets the most recent activation time of a note of current pitch
+            start = active[pitch].pop(0)
+            #creates note with corresponding pitch, start time, and duration
+            note = music21.note.Note(pitch)
+            note.offset = start * 0.25
+            note.duration.quarterLength = (time - start) * 0.25
+            #adds note to stream
+            stream.insert(note)
+    return stream
+
+#saves given stream as a midi file
+def save_stream(stream, path):
+    stream.write("midi", fp=path)
 
 #gets pytorch data loader from the given dataset + other info
 def get_loader(data,batch_size,collate=None,shuffle=False):
@@ -140,6 +185,28 @@ def get_loader(data,batch_size,collate=None,shuffle=False):
         # num_workers=2,
         # persistent_workers=True
     )
+
+#tests the tokens_to_stream function
+m = open_midi("midis/InTheCourtOfKingCrimson-KingCrimson.mid").flatten()
+notes = get_notes(m)
+events = get_events(notes)
+tokens = events_to_tokens(events)
+new_m = tokens_to_stream(tokens)
+save_stream(new_m, path="test.midi")
+save_stream(m.flatten(), path="example.midi")
+new_notes = get_notes(new_m)
+
+orig = sorted(notes, key=lambda n: (n["start"], n["pitch"], n["end"]))
+new = sorted(get_notes(new_m), key=lambda n: (n["start"], n["pitch"], n["end"]))
+
+for i, (a, b) in enumerate(zip(orig, new)):
+    if (abs(a["start"] - b["start"]) > 1e-6 or
+        abs(a["end"] - b["end"]) > 1e-6 or
+        a["pitch"] != b["pitch"]):
+        print("Mismatch at", i)
+        print(a)
+        print(b)
+        break
 
 
 #class to represent a dataset of music snippets
@@ -158,6 +225,8 @@ class music_snippet_dataset(Dataset):
         #iterates over every given song to create samples from
         for path in song_paths:
             midi = open_midi(path)
+
+            #print(midi)
             notes = get_notes(midi)
             events = get_events(notes)
             tokens = events_to_tokens(events)
