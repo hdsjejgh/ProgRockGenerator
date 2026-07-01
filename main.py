@@ -14,10 +14,10 @@ from data import *
 
 
 files = [
-    "AndYouAndI-Yes","SiberianKhatru-Yes","CloseToTheEdge-Yes", #from Yes' Close To The Edge (midis seem to be a bit messed up)
+    "AndYouAndI-Yes","SiberianKhatru-Yes","CloseToTheEdge-Yes", #from Yes' Close To The Edge
     "InTheCourtOfKingCrimson-KingCrimson","Red-KingCrimson", "Discipline-KingCrimson", "Exiles-KingCrimson", "FrameByFrame-KingCrimson", "StarlessAndBibleBlack-KingCrimson"  #from King Crimson's Discography
 ]
-files = list(map(lambda x:os.path.join("midis",x),files)) #converts the file names to their actual relative paths
+files = list(map(lambda x:os.path.join("midis",x)+".mid",files)) #converts the file names to their actual relative paths
 
 
 
@@ -132,7 +132,7 @@ def predict(inp, prediction_model):
 
 
 #this model will lowk replace robert fripp and revive king crimson
-MODEL_NAME = "RobertFripp2"
+MODEL_NAME = "RobertFripp3"
 #whether to train a new model (True) or load a model (False)
 TRAIN = False
 
@@ -247,4 +247,4 @@ elif not TRAIN:
     tokens = data.convert_id_to_token(ids=sample.tolist())
     print(tokens)
 
-    save_stream(tokens_to_stream(tokens),"PLEASEWORK.midi")
+    save_stream(tokens_to_stream(tokens),"PLEASEWORK2.midi")
