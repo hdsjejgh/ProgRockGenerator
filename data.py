@@ -263,3 +263,5 @@ class music_snippet_dataset(Dataset):
 
     def convert_id_to_token(self,ids):
         return list(map(lambda x:self.id_to_token[x],ids))
+
+

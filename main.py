@@ -14,16 +14,14 @@ from data import *
 
 
 files = [
-    "AndYouAndI-Yes.mid","SiberianKhatru-Yes.mid","CloseToTheEdge-Yes.mid", #from Yes' Close To The Edge (midis seem to be a bit messed up)
-    "InTheCourtOfKingCrimson-KingCrimson.mid" #from King Crimson's ITCOTCK
+    "AndYouAndI-Yes","SiberianKhatru-Yes","CloseToTheEdge-Yes", #from Yes' Close To The Edge (midis seem to be a bit messed up)
+    "InTheCourtOfKingCrimson-KingCrimson","Red-KingCrimson", "Discipline-KingCrimson", "Exiles-KingCrimson", "FrameByFrame-KingCrimson", "StarlessAndBibleBlack-KingCrimson"  #from King Crimson's Discography
 ]
 files = list(map(lambda x:os.path.join("midis",x),files)) #converts the file names to their actual relative paths
 
 
 
-
-
-data = music_snippet_dataset([files[3]],128)
+data = music_snippet_dataset(files,128)
 
 #proportion of the data to be split across training, testing, and validation
 TRAIN_P = .7
