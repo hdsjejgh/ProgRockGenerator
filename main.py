@@ -239,7 +239,7 @@ elif not TRAIN:
     sample = data[0][0].clone().detach()
     print(sample.size())
 
-    TOKEN_COUNT = 1024
+    TOKEN_COUNT = 10000
 
     for i in range(TOKEN_COUNT-len(sample)):
         part = sample[-128:]
