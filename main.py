@@ -236,8 +236,17 @@ elif not TRAIN:
     test_loss = evaluate(model, test_loader, criterion)
     print(f"Test Loss: {test_loss}")
 
-    sample = data[0][0]
-    print(sample)
+    sample = data[0][0].clone().detach()
+    print(sample.size())
 
+    TOKEN_COUNT = 1024
 
-    print(predict(sample, model))
+    for i in range(TOKEN_COUNT-len(sample)):
+        part = sample[-128:]
+        prediction = predict(part, model)
+        sample = torch.cat((sample,torch.tensor([prediction])))
+
+    tokens = data.convert_id_to_token(ids=sample.tolist())
+    print(tokens)
+
+    save_stream(tokens_to_stream(tokens),"PLEASEWORK.midi")

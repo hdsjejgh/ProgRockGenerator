@@ -2,6 +2,6 @@
     "EMBEDDING_DIM": 256,
     "HEADS": 4,
     "MAX_TOKENS": 128,
-    "VOCAB_SIZE": 139,
+    "VOCAB_SIZE": 135,
     "LAYERS": 2
 }

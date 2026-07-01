@@ -88,6 +88,7 @@ def get_events(notes):
 # WAIT_i = wait i 16th notes
 WAIT_DURATIONS = {i*.25:f"WAIT_{i}" for i in range(1,33)}
 
+
 #pitch on and off tokens for each pitch (the midi pitches go from 0-127)
 ON_TOKENS = {i:f"NOTE_ON_{i}" for i in range(128)}
 OFF_TOKENS = {i:f"NOTE_OFF_{i}" for i in range(128)}
@@ -114,6 +115,7 @@ def events_to_tokens(events):
 
         #breaks down the time between this and the last token into multiple wait tokens until the duration is under .25 (16th note)
         while dtime >= .25 - EPS:
+
             #fits the largest possible wait
             for i in range(32,0,-1):
                 t = i*.25
@@ -128,7 +130,7 @@ def events_to_tokens(events):
         tokens.append(curr_token)
         #curr_time = time
 
-    print(f"Lost time: {lost_time}")
+    #print(f"Lost time: {lost_time}")
     return tokens
 
 
@@ -160,7 +162,9 @@ def tokens_to_stream(tokens):
         elif token.startswith("NOTE_OFF_"):
             pitch = int(token[9:])
             #gets the most recent activation time of a note of current pitch
-            start = active[pitch].pop(0)
+            if len( active.setdefault(pitch, [])) != 0:
+                start = active[pitch].pop(0)
+            else: continue
             #creates note with corresponding pitch, start time, and duration
             note = music21.note.Note(pitch)
             note.offset = start * 0.25
@@ -186,27 +190,27 @@ def get_loader(data,batch_size,collate=None,shuffle=False):
         # persistent_workers=True
     )
 
-#tests the tokens_to_stream function
-m = open_midi("midis/InTheCourtOfKingCrimson-KingCrimson.mid").flatten()
-notes = get_notes(m)
-events = get_events(notes)
-tokens = events_to_tokens(events)
-new_m = tokens_to_stream(tokens)
-save_stream(new_m, path="test.midi")
-save_stream(m.flatten(), path="example.midi")
-new_notes = get_notes(new_m)
+# #tests the tokens_to_stream function
+# m = open_midi("midis/InTheCourtOfKingCrimson-KingCrimson.mid").flatten()
+# notes = get_notes(m)
+# events = get_events(notes)
+# tokens = events_to_tokens(events)
+# new_m = tokens_to_stream(tokens)
+# save_stream(new_m, path="test.midi")
+# save_stream(m.flatten(), path="example.midi")
+# new_notes = get_notes(new_m)
+#
+# orig = sorted(notes, key=lambda n: (n["start"], n["pitch"], n["end"]))
+# new = sorted(get_notes(new_m), key=lambda n: (n["start"], n["pitch"], n["end"]))
 
-orig = sorted(notes, key=lambda n: (n["start"], n["pitch"], n["end"]))
-new = sorted(get_notes(new_m), key=lambda n: (n["start"], n["pitch"], n["end"]))
-
-for i, (a, b) in enumerate(zip(orig, new)):
-    if (abs(a["start"] - b["start"]) > 1e-6 or
-        abs(a["end"] - b["end"]) > 1e-6 or
-        a["pitch"] != b["pitch"]):
-        print("Mismatch at", i)
-        print(a)
-        print(b)
-        break
+# for i, (a, b) in enumerate(zip(orig, new)):
+#     if (abs(a["start"] - b["start"]) > 1e-6 or
+#         abs(a["end"] - b["end"]) > 1e-6 or
+#         a["pitch"] != b["pitch"]):
+#         print("Mismatch at", i)
+#         print(a)
+#         print(b)
+#         break
 
 
 #class to represent a dataset of music snippets
@@ -256,3 +260,6 @@ class music_snippet_dataset(Dataset):
     #gets specific sample from index
     def __getitem__(self, i):
         return self.features[i], self.labels[i]
+
+    def convert_id_to_token(self,ids):
+        return list(map(lambda x:self.id_to_token[x],ids))
