@@ -122,14 +122,25 @@ def evaluate(model, loader, criterion):
     return epoch_loss / len(loader)
 
 #predicts the next token given the input and model
-def predict(inp, prediction_model):
+def predict(inp, prediction_model, selection_type = "GREEDY"):
+    selection_functions = {
+        "GREEDY": greedy_choice,
+    }
+
+    selection_type = selection_type.upper()
+    assert selection_type in selection_functions.keys(), f"Invalid selection function. Options are: {", ".join(selection_functions.keys())}"
+    selection_func = selection_functions[selection_type]
+
     logits = prediction_model.forward(inp.unsqueeze(0))[0][-1]
     #technically you dont have to softmax it but its done just for debugging in the future
     res = F.softmax(logits, dim=0)
 
-    maxind = torch.argmax(res)
-    return maxind
+    ind = selection_func(res)
+    return ind
 
+def greedy_choice(probabilities):
+    maxind = torch.argmax(probabilities)
+    return maxind
 
 #this model will lowk replace robert fripp and revive king crimson
 MODEL_NAME = "RobertFripp3"
