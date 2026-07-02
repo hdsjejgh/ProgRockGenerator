@@ -2,6 +2,7 @@ import music21
 from music21 import midi
 import torch
 from torch.utils.data import Dataset
+import os
 
 #an epsilon to avoid floating point errors
 EPS = 1e-6
