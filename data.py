@@ -6,6 +6,23 @@ from torch.utils.data import Dataset
 #an epsilon to avoid floating point errors
 EPS = 1e-6
 
+files = [
+    #from Yes' Close To The Edge
+    "AndYouAndI-Yes",
+    "SiberianKhatru-Yes",
+    "CloseToTheEdge-Yes",
+
+    #from King Crimson's Discography
+    "InTheCourtOfKingCrimson-KingCrimson",
+    "Red-KingCrimson",
+    "Discipline-KingCrimson",
+    "Exiles-KingCrimson",
+    "FrameByFrame-KingCrimson",
+    "StarlessAndBibleBlack-KingCrimson",
+]
+files = list(map(lambda x:os.path.join("midis",x)+".mid",files)) #converts the file names to their actual relative paths
+
+
 #opens midi into a music21 midi file from the path
 def open_midi(file_path):
     mf = midi.MidiFile()
