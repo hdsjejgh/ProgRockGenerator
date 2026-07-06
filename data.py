@@ -7,6 +7,7 @@ import os
 #an epsilon to avoid floating point errors
 EPS = 1e-6
 
+#every midi file used in the current training and whatnot
 files = [
     #from Yes' Close To The Edge
     "AndYouAndI-Yes",
@@ -20,6 +21,21 @@ files = [
     "Exiles-KingCrimson",
     "FrameByFrame-KingCrimson",
     "StarlessAndBibleBlack-KingCrimson",
+
+    #from Pink Floyd's Discography
+    "AnotherBrickInTheWallPt2-PinkFloyd",
+    "AtomHeartMother-PinkFloyd",
+    "BrainDamage-PinkFloyd",
+    "Echoes-PinkFloyd",
+    "NobodyHome-PinkFloyd",
+    "Sheep-PinkFloyd",
+    "TheGreatGigInTheSky-PinkFloyd",
+    "TheTrial-PinkFloyd",
+    "Time-PinkFloyd",
+    "UsAndThem-PinkFloyd",
+    "WishYouWereHere-PinkFloyd",
+
+
 ]
 files = list(map(lambda x:os.path.join("midis",x)+".mid",files)) #converts the file names to their actual relative paths
 
