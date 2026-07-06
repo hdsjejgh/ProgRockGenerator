@@ -1,4 +1,5 @@
 import os
+import random
 
 import tqdm
 import json
@@ -95,7 +96,7 @@ if __name__ == "__main__":
     # model.load_state_dict(state_dict)
     model.eval()
 
-    sample = data[0][0].clone().detach()
+    sample = data[random.randint(0,len(data))][0].clone().detach()
 
     TOKEN_COUNT = 5000
 
@@ -106,7 +107,7 @@ if __name__ == "__main__":
                 inp = part,
                 prediction_model = model,
                 sampling_type = "NEURON",
-                hyperparameter = 0.65,
+                hyperparameter = 0.85,
             )
             sample = torch.cat((sample, torch.tensor([prediction])))
 

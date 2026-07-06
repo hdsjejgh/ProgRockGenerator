@@ -50,7 +50,7 @@ def train(model, loader, optimizer, criterion, clip):
     epoch_loss = 0
 
     for i, batch in enumerate(loader):
-        if i%20==0: print(i)
+        if i%250==0: print(i)
         src,trg = batch
 
         # clears gradient in optimizer
@@ -111,7 +111,7 @@ def evaluate(model, loader, criterion):
 
 
 #this model will lowk replace robert fripp and revive king crimson
-MODEL_NAME = "RobertFripp3"
+MODEL_NAME = "RobotFripp"
 #whether to train a new model (True) or load a model (False)
 TRAIN = False
 
@@ -141,7 +141,7 @@ if TRAIN:
     # loss is CCE
     criterion = nn.CrossEntropyLoss(label_smoothing=0.075)
     # total epochs of training
-    EPOCHS = 10
+    EPOCHS = 5
     # Learning rate scheduler
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=EPOCHS)
 
